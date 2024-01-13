@@ -4,7 +4,7 @@
 
 namespace rl = raylib;
 
-constexpr int c_sim_size = 128;
+constexpr int c_sim_size = 512;
 constexpr int c_window_size = 800;
 
 struct Vector2i {
@@ -36,13 +36,21 @@ int main()
     std::vector<float> sim;
     sim.resize(c_sim_size * c_sim_size, 0.0f);
 
-    std::vector<float> temp_sim;
-    temp_sim.resize(c_sim_size * c_sim_size, 0.0f);
+    std::vector<float> sim_future;
+    sim_future.resize(c_sim_size * c_sim_size, 0.0f);
+
+    std::vector<float> sim_past;
+    sim_past.resize(c_sim_size * c_sim_size, 0.0f);
 
     rl::Image image { c_sim_size, c_sim_size, BLACK };
     rl::Texture texture { image };
 
     SetTargetFPS(60.0f);
+
+    constexpr float sim_timestep = 1.0f;
+    constexpr float sim_grid_spacing = 1.0f;
+    constexpr float sim_wave_speed = 0.5f;
+    const float alpha = std::pow(sim_timestep * sim_wave_speed / sim_grid_spacing, 2.0f);
 
     while (!window.ShouldClose()) {
 
@@ -56,15 +64,9 @@ int main()
             }
         }
 
-        std::ranges::copy(sim, temp_sim.begin());
         float sim_min = std::numeric_limits<float>::max();
         float sim_max = std::numeric_limits<float>::min();
         for (int i = 0; i < c_sim_size * c_sim_size; ++i) {
-            constexpr float sim_timestep = 1.0f;
-            constexpr float sim_grid_spacing = 1.0f;
-            constexpr float sim_wave_speed = 0.8f;
-            // Courant-Fridrichs-Lewy (CFL) condition for 2D
-            static_assert(sim_wave_speed * sim_timestep / sim_grid_spacing <= 1 / 1.141f);
             const auto [x, y] = idx_to_pos(i);
             float neighbor_sum = 0.0f;
             for (constexpr std::array<Vector2i, 4> offsets { { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } };
@@ -74,16 +76,18 @@ int main()
                 }
             }
             const float laplacian = (neighbor_sum - 4 * sim[i]) / (sim_grid_spacing * sim_grid_spacing);
-            temp_sim[i] += sim_wave_speed * sim_wave_speed * sim_timestep * sim_timestep * laplacian;
-            if (temp_sim[i] < sim_min) {
-                sim_min = temp_sim[i];
+            sim_future[i] = alpha * laplacian + 2 * sim[i] - sim_past[i];
+            sim_future[i] *= 0.995f;
+            if (sim_future[i] < sim_min) {
+                sim_min = sim_future[i];
             }
-            if (temp_sim[i] > sim_max) {
-                sim_max = temp_sim[i];
+            if (sim_future[i] > sim_max) {
+                sim_max = sim_future[i];
             }
         }
         std::cout << sim_min << ", " << sim_max << std::endl;
-        std::swap(sim, temp_sim);
+        sim_past = sim;
+        sim = sim_future;
 
         for (int i = 0; i < c_sim_size * c_sim_size; ++i) {
             const auto [x, y] = idx_to_pos(i);
