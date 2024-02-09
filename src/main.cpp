@@ -5,7 +5,7 @@
 namespace rl = raylib;
 
 constexpr int c_sim_size = 512;
-constexpr int c_window_size = 800;
+constexpr int c_window_size = 1200;
 
 struct Vector2i {
     int x;
@@ -77,7 +77,7 @@ int main()
             }
             const float laplacian = (neighbor_sum - 4 * sim[i]) / (sim_grid_spacing * sim_grid_spacing);
             sim_future[i] = alpha * laplacian + 2 * sim[i] - sim_past[i];
-            sim_future[i] *= 0.995f;
+            sim_future[i] *= 0.998f;
             if (sim_future[i] < sim_min) {
                 sim_min = sim_future[i];
             }
@@ -85,7 +85,6 @@ int main()
                 sim_max = sim_future[i];
             }
         }
-        std::cout << sim_min << ", " << sim_max << std::endl;
         sim_past = sim;
         sim = sim_future;
 
@@ -94,9 +93,9 @@ int main()
             image.DrawPixel(
                 x,
                 y,
-                { static_cast<unsigned char>((sim[i] - sim_min) / std::abs(sim_max - sim_min) * 255),
-                  static_cast<unsigned char>((sim[i] - sim_min) / std::abs(sim_max - sim_min) * 255),
-                  static_cast<unsigned char>((sim[i] - sim_min) / std::abs(sim_max - sim_min) * 255),
+                { static_cast<unsigned char>(std::clamp((sim[i] + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
+                  static_cast<unsigned char>(std::clamp((sim[i] + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
+                  static_cast<unsigned char>(std::clamp((sim[i] + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
                   255 });
         }
         texture.Update(image.GetData());
