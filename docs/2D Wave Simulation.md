@@ -61,15 +61,22 @@ $$
 
 We now need to approximate the second spatial derivative of the wave function $\frac{\part^2 u}{\part x^2}+\frac{\part^2 u}{\part y^2}$. We can use the same method we used for time; the finite difference method. However, unlike time where there is a single dimension, we have two spatial dimensions thus requiring us to use the two-dimensional second-order finite difference formula.
 $$
-f''(x,y) \approx \frac{f(x-h,y)+f(x+h,y)-4f(x,y)+f(x,y-h)+f(x,y+h)}{h^2}
+f''(x,y) \approx \frac{f(x-h,y)+f(x+h,y)-4f(x,y)+f(x,y-h)+f(x,y+h)}{\Delta g^2}
 $$
 
 * $x$ and $y$ are coordinates in space
-* $h$ is the distance between grid points.
+* $\Delta g$ is the distance between grid points.
 
-Even though this equation looks pretty complicated, it can actually be visualized nicely through a stencil which can be imagined as an overlay applied on top of a grid.
+Even though this equation looks pretty complicated, it can actually be visualized nicely through a stencil which can be imagined as an overlay applied on top of a grid where the number is a multiplier.
 
-==TODO==
+<img src="stencil_diagram.svg" width="200" />
+
+We can substitute this into our equation for predicting the future.
+$$
+f_\text{future}(x,y) = c^2 f_\text{present}''(x,y) \Delta t^2 
+	- f_\text{past}(x,y) + 2f_\text{present}(x,y)
+$$
+Now we have everything necessary to solve for $f_\text{future}(x,y)$. We simply need to provide neighboring grid cells surrounding $(x,y)$, a past value of $(x,y)$ and some constants such as wave speed $c$, timestep $\Delta t$, and grid spacing $\Delta g$.
 
 
 
