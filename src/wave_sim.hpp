@@ -40,7 +40,7 @@ public:
     {
         m_thread_pool.detach_blocks<int>(0, c_size * c_size, [&](const int start, const int end) {
             for (int i = start; i < end; ++i) {
-                m_buffer_future[i] = future_at(idx_to_pos(i));
+                m_buffer_future[i] = future_at_idx(i);
                 m_buffer_future[i] *= c_loss;
             }
         });
@@ -67,24 +67,26 @@ private:
         return pos.x >= 0 && pos.x < c_size && pos.y >= 0 && pos.y < c_size;
     }
 
-    [[nodiscard]] float spatial_derivative_at(const Vector2i pos) const
+    [[nodiscard]] float spatial_derivative_at_idx(const size_t idx) const
     {
+
         constexpr std::array<Vector2i, 4> neighbors { { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } } };
         float neighbor_sum = 0.0f;
-        for (const auto& [x, y] : neighbors) {
-            if (const Vector2i neighbor { pos.x + x, pos.y + y }; in_bounds(neighbor)) {
+        const auto [x, y] = idx_to_pos(idx);
+        for (const auto& [n_x, n_y] : neighbors) {
+            if (const Vector2i neighbor { x + n_x, y + n_y }; in_bounds(neighbor)) {
                 neighbor_sum += m_buffer_present[pos_to_idx(neighbor)];
             }
         }
-        const float numerator = neighbor_sum - 4.0f * m_buffer_present[pos_to_idx(pos)];
+        const float numerator = neighbor_sum - 4.0f * m_buffer_present[idx];
         const float denominator = c_grid_spacing * c_grid_spacing;
         return numerator / denominator;
     }
 
-    [[nodiscard]] float future_at(const Vector2i pos) const
+    [[nodiscard]] float future_at_idx(const size_t idx) const
     {
-        return c_wave_speed * c_wave_speed * spatial_derivative_at(pos) * c_timestep * c_timestep
-            - m_buffer_past[pos_to_idx(pos)] + 2.0f * m_buffer_present[pos_to_idx(pos)];
+        return c_wave_speed * c_wave_speed * spatial_derivative_at_idx(idx) * c_timestep * c_timestep
+            - m_buffer_past[idx] + 2.0f * m_buffer_present[idx];
     }
 
     const int c_size;
