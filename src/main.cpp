@@ -1,4 +1,5 @@
-#include <iostream>
+#include <algorithm>
+#include <array>
 
 #include <raylib-cpp.hpp>
 
@@ -29,12 +30,39 @@ static bool in_bounds(const Vector2i pos)
     return pos.x >= 0 && pos.x < c_sim_size && pos.y >= 0 && pos.y < c_sim_size;
 }
 
+static float sim_spatial_derivative_at(
+    const Vector2i& pos, const std::vector<float>& sim_present, const float grid_spacing)
+{
+    constexpr std::array<Vector2i, 4> neighbors { { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } } };
+    float neighbor_sum = 0.0f;
+    for (const auto& [x, y] : neighbors) {
+        if (const Vector2i neighbor { pos.x + x, pos.y + y }; in_bounds(neighbor)) {
+            neighbor_sum += sim_present[pos_to_idx(neighbor)];
+        }
+    }
+    const float numerator = neighbor_sum - 4.0f * sim_present[pos_to_idx(pos)];
+    const float denominator = grid_spacing * grid_spacing;
+    return numerator / denominator;
+}
+
+static float sim_future_at(
+    const Vector2i& pos,
+    const float wave_speed,
+    const float grid_spacing,
+    const float timestep,
+    const std::vector<float>& sim_present,
+    const std::vector<float>& sim_past)
+{
+    return wave_speed * wave_speed * sim_spatial_derivative_at(pos, sim_present, grid_spacing) * timestep * timestep
+        - sim_past[pos_to_idx(pos)] + 2.0f * sim_present[pos_to_idx(pos)];
+}
+
 int main()
 {
     const rl::Window window { c_window_size, c_window_size, "Wave Simulation" };
 
-    std::vector<float> sim;
-    sim.resize(c_sim_size * c_sim_size, 0.0f);
+    std::vector<float> sim_present;
+    sim_present.resize(c_sim_size * c_sim_size, 0.0f);
 
     std::vector<float> sim_future;
     sim_future.resize(c_sim_size * c_sim_size, 0.0f);
@@ -47,11 +75,6 @@ int main()
 
     SetTargetFPS(60.0f);
 
-    constexpr float sim_timestep = 1.0f;
-    constexpr float sim_grid_spacing = 1.0f;
-    constexpr float sim_wave_speed = 0.5f;
-    const float alpha = std::pow(sim_timestep * sim_wave_speed / sim_grid_spacing, 2.0f);
-
     while (!window.ShouldClose()) {
 
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
@@ -60,23 +83,18 @@ int main()
                 mouse_pos *= c_sim_size;
                 mouse_pos /= c_window_size;
                 const size_t idx = pos_to_idx({ static_cast<int>(mouse_pos.x), static_cast<int>(mouse_pos.y) });
-                sim[idx] = 1.0f;
+                sim_present[idx] = 1.0f;
             }
         }
 
         float sim_min = std::numeric_limits<float>::max();
         float sim_max = std::numeric_limits<float>::min();
         for (int i = 0; i < c_sim_size * c_sim_size; ++i) {
-            const auto [x, y] = idx_to_pos(i);
-            float neighbor_sum = 0.0f;
-            for (constexpr std::array<Vector2i, 4> offsets { { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } };
-                 const auto [offset_x, offset_y] : offsets) {
-                if (const Vector2i neighbor { x + offset_x, y + offset_y }; in_bounds(neighbor)) {
-                    neighbor_sum += sim[pos_to_idx(neighbor)];
-                }
-            }
-            const float laplacian = (neighbor_sum - 4 * sim[i]) / (sim_grid_spacing * sim_grid_spacing);
-            sim_future[i] = alpha * laplacian + 2 * sim[i] - sim_past[i];
+            constexpr float sim_wave_speed = 0.5f;
+            constexpr float sim_grid_spacing = 1.0f;
+            constexpr float sim_timestep = 1.0f;
+            sim_future[i]
+                = sim_future_at(idx_to_pos(i), sim_wave_speed, sim_grid_spacing, sim_timestep, sim_present, sim_past);
             sim_future[i] *= 0.998f;
             if (sim_future[i] < sim_min) {
                 sim_min = sim_future[i];
@@ -85,17 +103,17 @@ int main()
                 sim_max = sim_future[i];
             }
         }
-        sim_past = sim;
-        sim = sim_future;
+        sim_past = sim_present;
+        sim_present = sim_future;
 
         for (int i = 0; i < c_sim_size * c_sim_size; ++i) {
             const auto [x, y] = idx_to_pos(i);
             image.DrawPixel(
                 x,
                 y,
-                { static_cast<unsigned char>(std::clamp((sim[i] + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
-                  static_cast<unsigned char>(std::clamp((sim[i] + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
-                  static_cast<unsigned char>(std::clamp((sim[i] + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
+                { static_cast<unsigned char>(std::clamp((sim_present[i] + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
+                  static_cast<unsigned char>(std::clamp((sim_present[i] + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
+                  static_cast<unsigned char>(std::clamp((sim_present[i] + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
                   255 });
         }
         texture.Update(image.GetData());
