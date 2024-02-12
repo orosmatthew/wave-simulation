@@ -2,6 +2,8 @@
 
 #include <array>
 
+#include <BS_thread_pool.hpp>
+
 #include "common.hpp"
 
 class WaveSim {
@@ -26,14 +28,23 @@ public:
 
     [[nodiscard]] float value_at(const Vector2i pos) const
     {
-        return m_buffer_present[pos_to_idx(pos)];
+        return value_at_idx(pos_to_idx(pos));
     }
+
+    [[nodiscard]] float value_at_idx(const size_t idx) const
+    {
+        return m_buffer_present[idx];
+    }
+
     void update()
     {
-        for (int i = 0; i < c_size * c_size; ++i) {
-            m_buffer_future[i] = future_at(idx_to_pos(i));
-            m_buffer_future[i] *= c_loss;
-        }
+        m_thread_pool.detach_blocks<int>(0, c_size * c_size, [&](const int start, const int end) {
+            for (int i = start; i < end; ++i) {
+                m_buffer_future[i] = future_at(idx_to_pos(i));
+                m_buffer_future[i] *= c_loss;
+            }
+        });
+        m_thread_pool.wait();
         std::swap(m_buffer_past, m_buffer_present);
         std::swap(m_buffer_present, m_buffer_future);
     }
@@ -84,4 +95,5 @@ private:
     std::vector<float> m_buffer_past;
     std::vector<float> m_buffer_present;
     std::vector<float> m_buffer_future;
+    BS::thread_pool m_thread_pool;
 };

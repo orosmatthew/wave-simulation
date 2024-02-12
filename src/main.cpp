@@ -1,5 +1,6 @@
 #include <algorithm>
 
+#include <BS_thread_pool.hpp>
 #include <raylib-cpp.hpp>
 
 #include "wave_sim.hpp"
@@ -23,6 +24,8 @@ int main()
 
     SetTargetFPS(60.0f);
 
+    BS::thread_pool thread_pool;
+
     while (!window.ShouldClose()) {
 
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
@@ -36,9 +39,10 @@ int main()
 
         wave_sim.update();
 
-        for (int x = 0; x < sim_size; ++x) {
-            for (int y = 0; y < sim_size; ++y) {
-                const float sim_value = wave_sim.value_at({ x, y });
+        thread_pool.detach_blocks<int>(0, sim_size * sim_size, [&](const int start, const int end) {
+            for (int i = start; i < end; ++i) {
+                const float sim_value = wave_sim.value_at_idx(i);
+                const auto [x, y] = wave_sim.idx_to_pos(i);
                 image.DrawPixel(
                     x,
                     y,
@@ -47,7 +51,8 @@ int main()
                       static_cast<unsigned char>(std::clamp((sim_value + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
                       255 });
             }
-        }
+        });
+        thread_pool.wait();
 
         texture.Update(image.GetData());
 
