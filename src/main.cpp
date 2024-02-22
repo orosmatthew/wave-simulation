@@ -4,6 +4,7 @@
 #include <raylib-cpp.hpp>
 
 #include "wave_sim.hpp"
+#include "wave_sim_renderer.hpp"
 
 namespace rl = raylib;
 
@@ -23,12 +24,9 @@ int main()
     };
     WaveSim wave_sim(sim_props);
 
-    rl::Image image { sim_props.size, sim_props.size, BLACK };
-    rl::Texture texture { image };
+    WaveSimRenderer sim_renderer(sim_props.size);
 
     // SetTargetFPS(60.0f);
-
-    BS::thread_pool thread_pool;
 
     while (!window.ShouldClose()) {
 
@@ -42,34 +40,16 @@ int main()
         }
 
         wave_sim.update();
-
-        thread_pool.detach_blocks<int>(0, sim_props.size * sim_props.size, [&](const int start, const int end) {
-            for (int i = start; i < end; ++i) {
-                const double sim_value = wave_sim.value_at_idx(i);
-                const auto [x, y] = wave_sim.idx_to_pos(i);
-                image.DrawPixel(
-                    x,
-                    y,
-                    { static_cast<unsigned char>(std::clamp((sim_value + 0.5) / (0.5 * 2), 0.0, 1.0) * 255),
-                      static_cast<unsigned char>(std::clamp((sim_value + 0.5) / (0.5 * 2), 0.0, 1.0) * 255),
-                      static_cast<unsigned char>(std::clamp((sim_value + 0.5) / (0.5 * 2), 0.0, 1.0) * 255),
-                      255 });
-            }
-        });
-        thread_pool.wait();
-
-        texture.Update(image.GetData());
+        sim_renderer.update(wave_sim);
 
         BeginDrawing();
-
         DrawTexturePro(
-            texture,
+            sim_renderer.texture(),
             { 0.0f, 0.0f, sim_props.size, sim_props.size },
             { 0.0f, 0.0f, window_size, window_size },
             { 0.0f, 0.0f },
             0.0f,
             WHITE);
-
         DrawFPS(10.0f, 10.0f);
         EndDrawing();
     }
