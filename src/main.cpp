@@ -1,6 +1,5 @@
 #include <algorithm>
 
-#include <BS_thread_pool.hpp>
 #include <raylib-cpp.hpp>
 
 #include "wave_sim.hpp"
