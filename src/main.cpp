@@ -12,17 +12,17 @@ int main()
     constexpr int window_size = 1200;
     const rl::Window window { window_size, window_size, "Wave Simulation" };
 
-    constexpr int sim_size = 512;
-    constexpr float sim_wave_speed = 0.5f;
-    constexpr float sim_grid_spacing = 1.0f;
-    constexpr float sim_timestep = 1.0f;
-    constexpr float sim_loss = 0.998f;
+    constexpr int sim_size = 2048;
+    constexpr double sim_wave_speed = 0.5;
+    constexpr double sim_grid_spacing = 1.0;
+    constexpr double sim_timestep = 1.0;
+    constexpr double sim_loss = 0.999;
     WaveSim wave_sim(sim_size, sim_wave_speed, sim_grid_spacing, sim_timestep, sim_loss);
 
     rl::Image image { sim_size, sim_size, BLACK };
     rl::Texture texture { image };
 
-    SetTargetFPS(60.0f);
+    // SetTargetFPS(60.0f);
 
     BS::thread_pool thread_pool;
 
@@ -33,7 +33,7 @@ int main()
                 mouse_pos.x >= 0 && mouse_pos.x < window_size && mouse_pos.y >= 0 && mouse_pos.y < window_size) {
                 mouse_pos *= sim_size;
                 mouse_pos /= window_size;
-                wave_sim.set_at({ static_cast<int>(mouse_pos.x), static_cast<int>(mouse_pos.y) }, 1.0f);
+                wave_sim.set_at({ static_cast<int>(mouse_pos.x), static_cast<int>(mouse_pos.y) }, 10.0);
             }
         }
 
@@ -41,14 +41,14 @@ int main()
 
         thread_pool.detach_blocks<int>(0, sim_size * sim_size, [&](const int start, const int end) {
             for (int i = start; i < end; ++i) {
-                const float sim_value = wave_sim.value_at_idx(i);
+                const double sim_value = wave_sim.value_at_idx(i);
                 const auto [x, y] = wave_sim.idx_to_pos(i);
                 image.DrawPixel(
                     x,
                     y,
-                    { static_cast<unsigned char>(std::clamp((sim_value + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
-                      static_cast<unsigned char>(std::clamp((sim_value + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
-                      static_cast<unsigned char>(std::clamp((sim_value + 0.5f) / (0.5f * 2), 0.0f, 1.0f) * 255),
+                    { static_cast<unsigned char>(std::clamp((sim_value + 0.5) / (0.5 * 2), 0.0, 1.0) * 255),
+                      static_cast<unsigned char>(std::clamp((sim_value + 0.5) / (0.5 * 2), 0.0, 1.0) * 255),
+                      static_cast<unsigned char>(std::clamp((sim_value + 0.5) / (0.5 * 2), 0.0, 1.0) * 255),
                       255 });
             }
         });
