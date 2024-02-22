@@ -4,7 +4,7 @@ project(wave_simulation)
 set(CMAKE_CXX_STANDARD 20)
 
 add_subdirectory(external/raylib-5.0)
-add_subdirectory(external/raylib-cpp-5.0.0)
+add_subdirectory(external/raylib-cpp-5.0.1)
 
 if (WIN32)
     if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
