@@ -37,7 +37,7 @@ int main()
                 mouse_pos.x >= 0 && mouse_pos.x < window_size && mouse_pos.y >= 0 && mouse_pos.y < window_size) {
                 mouse_pos *= sim_props.size;
                 mouse_pos /= window_size;
-                wave_sim.set_at({ static_cast<int>(mouse_pos.x), static_cast<int>(mouse_pos.y) }, 10.0);
+                wave_sim.add_at({ static_cast<int>(mouse_pos.x), static_cast<int>(mouse_pos.y) }, 10.0);
             }
         }
 

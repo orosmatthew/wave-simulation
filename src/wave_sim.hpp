@@ -37,6 +37,11 @@ public:
         m_buffer_present[pos_to_idx(pos)] = value;
     }
 
+    void add_at(const Vector2i pos, const double value)
+    {
+        m_buffer_present[pos_to_idx(pos)] += value;
+    }
+
     [[nodiscard]] double value_at(const Vector2i pos) const
     {
         return value_at_idx(pos_to_idx(pos));
