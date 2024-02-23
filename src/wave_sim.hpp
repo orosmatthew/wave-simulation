@@ -29,12 +29,28 @@ public:
         , m_buffer_past(c_size * c_size, 0.0)
         , m_buffer_present(c_size * c_size, 0.0)
         , m_buffer_future(c_size * c_size, 0.0)
+        , m_buffed_fixed(c_size * c_size, false)
     {
     }
 
     void set_at(const Vector2i pos, const double value)
     {
         m_buffer_present[pos_to_idx(pos)] = value;
+    }
+
+    void set_fixed_at(const Vector2i pos, const bool fixed)
+    {
+        m_buffed_fixed[pos_to_idx(pos)] = fixed;
+    }
+
+    bool fixed_at(const Vector2i pos) const
+    {
+        return fixed_at_idx(pos_to_idx(pos));
+    }
+
+    bool fixed_at_idx(const size_t idx) const
+    {
+        return m_buffed_fixed[idx];
     }
 
     void add_at(const Vector2i pos, const double value)
@@ -56,8 +72,13 @@ public:
     {
         m_thread_pool.detach_blocks<int>(0, c_size * c_size, [&](const int start, const int end) {
             for (int i = start; i < end; ++i) {
-                m_buffer_future[i] = future_at_idx(i);
-                m_buffer_future[i] *= c_loss;
+                if (!m_buffed_fixed[i]) {
+                    m_buffer_future[i] = future_at_idx(i);
+                    m_buffer_future[i] *= c_loss;
+                }
+                else {
+                    m_buffer_future[i] = m_buffer_present[i];
+                }
             }
         });
         m_thread_pool.wait();
@@ -76,6 +97,11 @@ public:
         const int y = static_cast<int>(idx / c_size);
         const int x = static_cast<int>(idx % c_size);
         return { x, y };
+    }
+
+    [[nodiscard]] bool in_bounds(const Vector2i pos) const
+    {
+        return pos.x >= 0 && pos.x < c_size && pos.y >= 0 && pos.y < c_size;
     }
 
 private:
@@ -108,11 +134,6 @@ private:
             damping = c_damping_strength * (y - (c_size - c_damping_width)) / c_damping_width;
         }
         return damping;
-    }
-
-    [[nodiscard]] bool in_bounds(const Vector2i pos) const
-    {
-        return pos.x >= 0 && pos.x < c_size && pos.y >= 0 && pos.y < c_size;
     }
 
     [[nodiscard]] double spatial_derivative_at_idx(const size_t idx) const
@@ -148,5 +169,6 @@ private:
     std::vector<double> m_buffer_past;
     std::vector<double> m_buffer_present;
     std::vector<double> m_buffer_future;
+    std::vector<bool> m_buffed_fixed;
     BS::thread_pool m_thread_pool;
 };
