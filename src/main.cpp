@@ -7,17 +7,53 @@
 
 namespace rl = raylib;
 
+struct Sizes {
+    float interface_scale = 1.0f;
+    int toolbar_height = static_cast<int>(100 * interface_scale);
+    int window_width = static_cast<int>(800 * interface_scale);
+    int window_height = window_width + toolbar_height;
+    int sim_size = 1600;
+};
+
+std::optional<Vector2i> mouse_to_sim(const Sizes& sizes, const rl::Vector2 mouse_pos)
+{
+    if (!(mouse_pos.x >= 0 && mouse_pos.x < static_cast<float>(sizes.window_width) && mouse_pos.y >= 0
+          && mouse_pos.y < static_cast<float>(sizes.window_height))) {
+        return std::nullopt;
+    }
+    if (mouse_pos.y <= static_cast<float>(sizes.toolbar_height)) {
+        return std::nullopt;
+    }
+    const rl::Vector2 mouse_pos_sim = mouse_pos - rl::Vector2(0.0f, static_cast<float>(sizes.toolbar_height));
+    const rl::Vector2 sim_pos_f
+        = mouse_pos_sim * static_cast<float>(sizes.sim_size) / static_cast<float>(sizes.window_width);
+    return Vector2i { static_cast<int>(sim_pos_f.x), static_cast<int>(sim_pos_f.y) };
+}
+
+Sizes resize_interface(Sizes sizes, const float scale)
+{
+    sizes.interface_scale = scale;
+    sizes.toolbar_height = static_cast<int>(static_cast<float>(sizes.toolbar_height) * sizes.interface_scale);
+    sizes.window_width = static_cast<int>(static_cast<float>(sizes.window_width) * sizes.interface_scale);
+    sizes.window_height = sizes.window_width + sizes.toolbar_height;
+    return sizes;
+}
+
 int main()
 {
-    constexpr int window_size = 1200;
-    const rl::Window window { window_size, window_size, "Wave Simulation" };
+    Sizes sizes;
+    rl::Window window { sizes.window_width, sizes.window_height, "Wave Simulation" };
+    if (rl::Vector2 dpi_scale = GetWindowScaleDPI(); sizes.interface_scale != dpi_scale.x) {
+        sizes = resize_interface(sizes, dpi_scale.x);
+    }
+    window.SetSize(sizes.window_width, sizes.window_height);
 
-    constexpr auto sim_props = WaveSim::Properties {
-        .size = 2048,
+    auto sim_props = WaveSim::Properties {
+        .size = sizes.sim_size,
         .wave_speed = 0.5,
         .grid_spacing = 1.0,
         .timestep = 1.0,
-        .loss = 0.9999,
+        .loss = 0.9995,
         .damping_strength = 0.08,
         .damping_width = 100
     };
@@ -28,47 +64,31 @@ int main()
     // SetTargetFPS(60.0f);
 
     while (!window.ShouldClose()) {
-
-        if (!IsKeyDown(KEY_SPACE) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            if (rl::Vector2 mouse_pos = GetMousePosition();
-                mouse_pos.x >= 0 && mouse_pos.x < window_size && mouse_pos.y >= 0 && mouse_pos.y < window_size) {
-                mouse_pos *= sim_props.size;
-                mouse_pos /= window_size;
-                wave_sim.add_at({ static_cast<int>(mouse_pos.x), static_cast<int>(mouse_pos.y) }, 10.0);
+        const rl::Vector2 mouse_pos = GetMousePosition();
+        if (const std::optional<Vector2i> sim_pos = mouse_to_sim(sizes, mouse_pos); sim_pos.has_value()) {
+            if (!IsKeyDown(KEY_SPACE) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+                wave_sim.add_at(sim_pos.value(), 10.0);
             }
-        }
-
-        if (IsKeyDown(KEY_SPACE) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            if (rl::Vector2 mouse_pos = GetMousePosition();
-                mouse_pos.x >= 0 && mouse_pos.x < window_size && mouse_pos.y >= 0 && mouse_pos.y < window_size) {
-                mouse_pos *= sim_props.size;
-                mouse_pos /= window_size;
-                const Vector2i center = { static_cast<int>(mouse_pos.x), static_cast<int>(mouse_pos.y) };
+            if (IsKeyDown(KEY_SPACE) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
                 constexpr int radius = 10;
                 for (int x = -radius; x < radius; ++x) {
                     for (int y = -radius; y < radius; ++y) {
-                        if (Vector2i sim_pos { center.x + x, center.y + y };
-                            wave_sim.in_bounds(sim_pos) && std::sqrt(x * x + y * y) <= radius) {
-                            wave_sim.set_at(sim_pos, 0.0);
-                            wave_sim.set_fixed_at(sim_pos, true);
+                        if (Vector2i pos { sim_pos->x + x, sim_pos->y + y };
+                            wave_sim.in_bounds(pos) && std::sqrt(x * x + y * y) <= radius) {
+                            wave_sim.set_at(pos, 0.0);
+                            wave_sim.set_fixed_at(pos, true);
                         }
                     }
                 }
             }
-        }
-        if (IsKeyDown(KEY_SPACE) && IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-            if (rl::Vector2 mouse_pos = GetMousePosition();
-                mouse_pos.x >= 0 && mouse_pos.x < window_size && mouse_pos.y >= 0 && mouse_pos.y < window_size) {
-                mouse_pos *= sim_props.size;
-                mouse_pos /= window_size;
-                const Vector2i center = { static_cast<int>(mouse_pos.x), static_cast<int>(mouse_pos.y) };
+            if (IsKeyDown(KEY_SPACE) && IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
                 constexpr int radius = 20;
                 for (int x = -radius; x < radius; ++x) {
                     for (int y = -radius; y < radius; ++y) {
-                        if (Vector2i sim_pos { center.x + x, center.y + y }; wave_sim.in_bounds(sim_pos)
-                            && sqrt(x * x + y * y) <= radius && wave_sim.fixed_at(sim_pos)) {
-                            wave_sim.set_at(sim_pos, 0.0);
-                            wave_sim.set_fixed_at(sim_pos, false);
+                        if (Vector2i pos { sim_pos->x + x, sim_pos->y + y };
+                            wave_sim.in_bounds(pos) && std::sqrt(x * x + y * y) <= radius && wave_sim.fixed_at(pos)) {
+                            wave_sim.set_at(pos, 0.0);
+                            wave_sim.set_fixed_at(pos, false);
                         }
                     }
                 }
@@ -79,14 +99,18 @@ int main()
         sim_renderer.update(wave_sim);
 
         BeginDrawing();
+        ClearBackground(WHITE);
         DrawTexturePro(
             sim_renderer.texture(),
-            { 0.0f, 0.0f, sim_props.size, sim_props.size },
-            { 0.0f, 0.0f, window_size, window_size },
+            { 0.0f, 0.0f, static_cast<float>(sim_props.size), static_cast<float>(sim_props.size) },
+            { 0.0f,
+              static_cast<float>(sizes.toolbar_height),
+              static_cast<float>(sizes.window_width),
+              static_cast<float>(sizes.window_width) },
             { 0.0f, 0.0f },
             0.0f,
             WHITE);
-        DrawFPS(10.0f, 10.0f);
+        DrawFPS(10, sizes.toolbar_height + 10);
         EndDrawing();
     }
 
