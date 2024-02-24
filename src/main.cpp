@@ -51,14 +51,14 @@ static void handle_font_scale_inputs(rl::Font& font)
     }
 }
 
-enum class Mode { none, wave, build };
+enum class Mode { none, interact, walls };
 
 static void handle_sim_inputs(const Mode mode, WaveSim& wave_sim, const int toolbar_height)
 {
     const rl::Vector2 mouse_pos = GetMousePosition();
     if (const std::optional<Vector2i> sim_pos = mouse_to_sim(mouse_pos, toolbar_height);
         sim_pos.has_value() && wave_sim.in_bounds(sim_pos.value())) {
-        if (mode == Mode::build) {
+        if (mode == Mode::walls) {
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
                 constexpr int radius = 10;
                 for (int x = -radius; x < radius; ++x) {
@@ -84,7 +84,7 @@ static void handle_sim_inputs(const Mode mode, WaveSim& wave_sim, const int tool
                 }
             }
         }
-        else if (mode == Mode::wave) {
+        else if (mode == Mode::interact) {
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
                 wave_sim.add_at(sim_pos.value(), 10.0);
             }
@@ -119,12 +119,12 @@ int main()
     // SetTargetFPS(60.0f);
 
     auto renderer_theme = WaveSimRenderer::Theme::grayscale;
-    auto mode = Mode::wave;
+    auto mode = Mode::interact;
 
     LabelledDropdown theme_dropdown("Theme");
     theme_dropdown.set_items({ "Grayscale", "Grayscale ABS" });
     LabelledDropdown mode_dropdown("Mode");
-    mode_dropdown.set_items({ "None [N]", "Wave [W]", "Build [B]" });
+    mode_dropdown.set_items({ "None [N]", "Interact [I]", "Walls [W]" });
     mode_dropdown.set_active(static_cast<int>(mode));
 
     float scale = 1.0f;
@@ -134,16 +134,20 @@ int main()
         int toolbar_height = static_cast<int>(std::round(100.0f * scale));
         handle_font_scale_inputs(font);
 
+        if (IsKeyPressed(KEY_C)) {
+            wave_sim.clear();
+        }
+
         if (IsKeyPressed(KEY_N)) {
             mode = Mode::none;
             mode_dropdown.set_active(static_cast<int>(mode));
         }
-        else if (IsKeyPressed(KEY_W)) {
-            mode = Mode::wave;
+        else if (IsKeyPressed(KEY_I)) {
+            mode = Mode::interact;
             mode_dropdown.set_active(static_cast<int>(mode));
         }
-        else if (IsKeyPressed(KEY_B)) {
-            mode = Mode::build;
+        else if (IsKeyPressed(KEY_W)) {
+            mode = Mode::walls;
             mode_dropdown.set_active(static_cast<int>(mode));
         }
 
@@ -173,10 +177,10 @@ int main()
             float ui_padding = 10.0f * scale;
 
             float offset_x = ui_padding;
-            if (GuiButton({ ui_padding, ui_padding, 60.0f * scale, ui_height }, "Clear")) {
+            if (GuiButton({ ui_padding, ui_padding, 70.0f * scale, ui_height }, "Clear [C]")) {
                 wave_sim.clear();
             }
-            offset_x += 60.0f * scale + ui_padding;
+            offset_x += 70.0f * scale + ui_padding;
             GuiToggleSlider({ offset_x, ui_padding, 60.0f * scale, ui_height }, "FPS;FPS", &show_fps);
 
             offset_x = ui_padding;
