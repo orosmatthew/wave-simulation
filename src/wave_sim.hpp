@@ -104,6 +104,14 @@ public:
         return pos.x >= 0 && pos.x < c_size && pos.y >= 0 && pos.y < c_size;
     }
 
+    void clear()
+    {
+        m_buffer_past = std::vector(c_size * c_size, 0.0);
+        m_buffer_present = std::vector(c_size * c_size, 0.0);
+        m_buffer_future = std::vector(c_size * c_size, 0.0);
+        m_buffed_fixed = std::vector(c_size * c_size, false);
+    }
+
 private:
     static Vector2i opposite_neighbor(const Vector2i n)
     {
