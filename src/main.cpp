@@ -11,6 +11,7 @@
 namespace rl = raylib;
 
 constexpr int sim_size = 1600;
+constexpr int base_font_size = 16;
 
 static rl::Rectangle sim_screen_rect(const int toolbar_height)
 {
@@ -50,7 +51,7 @@ static void handle_font_scale_inputs(rl::Font& font)
     }
 }
 
-enum class Mode { wave, build };
+enum class Mode { none, wave, build };
 
 static void handle_sim_inputs(const Mode mode, WaveSim& wave_sim, const int toolbar_height)
 {
@@ -96,7 +97,7 @@ int main()
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
     rl::Window window { 600, 700, "Wave Simulation" };
     window.SetMinSize(600, 700);
-    const int font_size = static_cast<int>(std::round(18.0f * GetWindowScaleDPI().x));
+    const int font_size = static_cast<int>(std::round(static_cast<float>(base_font_size) * GetWindowScaleDPI().x));
     rl::Font font = LoadFontFromMemory(
         ".ttf", font_robot_regular_ttf_bin, static_cast<int>(font_robot_regular_ttf_bin_size), font_size, nullptr, 0);
     GuiSetFont(font);
@@ -123,15 +124,21 @@ int main()
     LabelledDropdown theme_dropdown("Theme");
     theme_dropdown.set_items({ "Grayscale", "Grayscale ABS" });
     LabelledDropdown mode_dropdown("Mode");
-    mode_dropdown.set_items({ "Wave [W]", "Build [B]" });
+    mode_dropdown.set_items({ "None [N]", "Wave [W]", "Build [B]" });
+    mode_dropdown.set_active(static_cast<int>(mode));
 
     float scale = 1.0f;
+    int show_fps = 0;
 
     while (!window.ShouldClose()) {
         int toolbar_height = static_cast<int>(std::round(100.0f * scale));
         handle_font_scale_inputs(font);
 
-        if (IsKeyPressed(KEY_W)) {
+        if (IsKeyPressed(KEY_N)) {
+            mode = Mode::none;
+            mode_dropdown.set_active(static_cast<int>(mode));
+        }
+        else if (IsKeyPressed(KEY_W)) {
             mode = Mode::wave;
             mode_dropdown.set_active(static_cast<int>(mode));
         }
@@ -153,28 +160,32 @@ int main()
             { 0.0f, 0.0f },
             0.0f,
             WHITE);
-        DrawFPS(10, toolbar_height + 10);
+        if (show_fps) {
+            DrawFPS(10, toolbar_height + 10);
+        }
 
         if (const float s = GetWindowScaleDPI().x; s != scale) {
             scale = s;
-            resize_font(font, static_cast<int>(std::round(18.0f * scale)));
+            resize_font(font, static_cast<int>(std::round(static_cast<float>(base_font_size) * scale)));
         }
         {
             float ui_height = 25.0f * scale;
             float ui_padding = 10.0f * scale;
 
-            if (GuiButton({ ui_padding, ui_padding, 100.0f * scale, ui_height }, "Clear")) {
+            float offset_x = ui_padding;
+            if (GuiButton({ ui_padding, ui_padding, 60.0f * scale, ui_height }, "Clear")) {
                 wave_sim.clear();
             }
-            float offset_x = ui_padding;
+            offset_x += 60.0f * scale + ui_padding;
+            GuiToggleSlider({ offset_x, ui_padding, 60.0f * scale, ui_height }, "FPS;FPS", &show_fps);
+
+            offset_x = ui_padding;
             theme_dropdown.draw_and_update(
-                { offset_x, ui_height + ui_padding * 1.5f, 180.0f * scale, ui_height * 2.0f });
-            offset_x += 180.0f * scale + ui_padding;
+                { offset_x, ui_height + ui_padding * 1.5f, 110.0f * scale, ui_height * 2.0f });
+            offset_x += 110.0f * scale + ui_padding;
             renderer_theme = static_cast<WaveSimRenderer::Theme>(theme_dropdown.active());
-            mode_dropdown.draw_and_update(
-                { offset_x, ui_height + ui_padding * 1.5f, 120.0f * scale, ui_height * 2.0f });
+            mode_dropdown.draw_and_update({ offset_x, ui_height + ui_padding * 1.5f, 90.0f * scale, ui_height * 2.0f });
             mode = static_cast<Mode>(mode_dropdown.active());
-            // offset_x += 120.0f + ui_padding;
         }
 
         EndDrawing();
