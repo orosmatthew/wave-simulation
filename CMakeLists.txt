@@ -13,7 +13,7 @@ if (WIN32)
 endif ()
 
 add_executable(wave_simulation src/main.cpp)
-target_include_directories(wave_simulation PRIVATE
+target_include_directories(wave_simulation SYSTEM PRIVATE
         external/thread-pool-4.0.1/include
         external/raygui-4.0/include)
 target_link_libraries(wave_simulation raylib raylib_cpp)
