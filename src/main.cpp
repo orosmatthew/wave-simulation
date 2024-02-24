@@ -103,7 +103,7 @@ static void draw(const WaveSimRenderer& sim_renderer)
 
 int main()
 {
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
     rl::Window window { 600, 800, "Wave Simulation" };
     rl::Font roboto_font = LoadFontFromMemory(
         ".ttf", font_robot_regular_ttf_bin, static_cast<int>(font_robot_regular_ttf_bin_size), 18, nullptr, 0);

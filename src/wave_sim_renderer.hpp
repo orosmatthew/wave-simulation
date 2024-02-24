@@ -20,19 +20,21 @@ public:
         m_thread_pool.detach_blocks<int>(0, c_size * c_size, [&](const int start, const int end) {
             for (int i = start; i < end; ++i) {
                 const auto [x, y] = sim.idx_to_pos(i);
+                Color color;
                 if (sim.fixed_at_idx(i)) {
-                    m_image.DrawPixel(x, y, { 0, 0, 0, 255 });
+                    color = { 0, 0, 0, 255 };
                 }
                 else {
                     const double sim_value = sim.value_at_idx(i);
-                    m_image.DrawPixel(
-                        x,
-                        y,
-                        { static_cast<unsigned char>(std::clamp((sim_value + 0.5) / (0.5 * 2), 0.0, 1.0) * 255),
-                          static_cast<unsigned char>(std::clamp((sim_value + 0.5) / (0.5 * 2), 0.0, 1.0) * 255),
-                          static_cast<unsigned char>(std::clamp((sim_value + 0.5) / (0.5 * 2), 0.0, 1.0) * 255),
-                          255 });
+                    color = { static_cast<unsigned char>(std::clamp((sim_value + 0.5) / (0.5 * 2), 0.0, 1.0) * 255),
+                              static_cast<unsigned char>(std::clamp((sim_value + 0.5) / (0.5 * 2), 0.0, 1.0) * 255),
+                              static_cast<unsigned char>(std::clamp((sim_value + 0.5) / (0.5 * 2), 0.0, 1.0) * 255),
+                              255 };
                 }
+                static_cast<unsigned char*>(m_image.data)[(y * m_image.width + x) * 4] = color.r;
+                static_cast<unsigned char*>(m_image.data)[(y * m_image.width + x) * 4 + 1] = color.g;
+                static_cast<unsigned char*>(m_image.data)[(y * m_image.width + x) * 4 + 2] = color.b;
+                static_cast<unsigned char*>(m_image.data)[(y * m_image.width + x) * 4 + 3] = color.a;
             }
         });
         m_thread_pool.wait();
