@@ -12,6 +12,11 @@ if (WIN32)
     endif ()
 endif ()
 
+if (EMSCRIPTEN)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -sUSE_GLFW=3 -sASSERTIONS=1 -sWASM=1 -sGL_ENABLE_GET_PROC_ADDRESS=1 -sALLOW_MEMORY_GROWTH --shell-file=../dist/index.html")
+    set(CMAKE_EXECUTABLE_SUFFIX ".html")
+endif ()
+
 add_executable(wave_simulation src/main.cpp)
 target_include_directories(wave_simulation SYSTEM PRIVATE
         external/thread-pool-4.0.1/include

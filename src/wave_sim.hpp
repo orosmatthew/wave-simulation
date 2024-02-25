@@ -2,7 +2,9 @@
 
 #include <array>
 
+#ifndef PLATFORM_WEB
 #include <BS_thread_pool.hpp>
+#endif
 
 #include "common.hpp"
 
@@ -43,12 +45,12 @@ public:
         m_buffed_fixed[pos_to_idx(pos)] = fixed;
     }
 
-    bool fixed_at(const Vector2i pos) const
+    [[nodiscard]] bool fixed_at(const Vector2i pos) const
     {
         return fixed_at_idx(pos_to_idx(pos));
     }
 
-    bool fixed_at_idx(const size_t idx) const
+    [[nodiscard]] bool fixed_at_idx(const size_t idx) const
     {
         return m_buffed_fixed[idx];
     }
@@ -70,18 +72,28 @@ public:
 
     void update()
     {
+
+        auto update_at = [&](const int i) {
+            if (!m_buffed_fixed[i]) {
+                m_buffer_future[i] = future_at_idx(i);
+                m_buffer_future[i] *= c_loss;
+            }
+            else {
+                m_buffer_future[i] = m_buffer_present[i];
+            }
+        };
+#ifndef PLATFORM_WEB
         m_thread_pool.detach_blocks<int>(0, c_size * c_size, [&](const int start, const int end) {
             for (int i = start; i < end; ++i) {
-                if (!m_buffed_fixed[i]) {
-                    m_buffer_future[i] = future_at_idx(i);
-                    m_buffer_future[i] *= c_loss;
-                }
-                else {
-                    m_buffer_future[i] = m_buffer_present[i];
-                }
+                update_at(i);
             }
         });
         m_thread_pool.wait();
+#else
+        for (int i = 0; i < c_size * c_size; ++i) {
+            update_at(i);
+        }
+#endif
 
         std::swap(m_buffer_past, m_buffer_present);
         std::swap(m_buffer_present, m_buffer_future);
@@ -125,7 +137,7 @@ private:
         return opp;
     }
 
-    double damping_at_idx(const size_t idx) const
+    [[nodiscard]] double damping_at_idx(const size_t idx) const
     {
         const auto [x, y] = idx_to_pos(idx);
         double damping = 0.0;
@@ -178,5 +190,7 @@ private:
     std::vector<double> m_buffer_present;
     std::vector<double> m_buffer_future;
     std::vector<bool> m_buffed_fixed;
+#ifndef PLATFORM_WEB
     BS::thread_pool m_thread_pool;
+#endif
 };
