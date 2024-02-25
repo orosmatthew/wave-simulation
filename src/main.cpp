@@ -165,7 +165,7 @@ void loop(void* state)
             s->wave_sim.clear();
         }
         offset_x += 70.0f * s->scale + ui_padding;
-        GuiToggleSlider({ offset_x, ui_padding, 60.0f * s->scale, ui_height }, "FPS;FPS", &(s->show_fps));
+        GuiToggleSlider({ offset_x, ui_padding, 60.0f * s->scale, ui_height }, "FPS;FPS", &s->show_fps);
 
         offset_x = ui_padding;
         s->theme_dropdown.draw_and_update(
@@ -191,7 +191,7 @@ int main()
     GuiSetFont(font);
     GuiSetStyle(DEFAULT, TEXT_SIZE, font_size);
 
-    auto sim_props = WaveSim::Properties {
+    constexpr auto sim_props = WaveSim::Properties {
         .size = sim_size,
         .wave_speed = 0.5,
         .grid_spacing = 1.0,
