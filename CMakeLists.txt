@@ -22,3 +22,9 @@ target_include_directories(wave_simulation SYSTEM PRIVATE
         external/thread-pool-4.0.1/include
         external/raygui-4.0/include)
 target_link_libraries(wave_simulation raylib raylib_cpp)
+
+add_executable(schrodinger_simulation src/main_schrodinger.cpp)
+target_include_directories(schrodinger_simulation SYSTEM PRIVATE
+        external/thread-pool-4.0.1/include
+        external/raygui-4.0/include)
+target_link_libraries(schrodinger_simulation raylib raylib_cpp)

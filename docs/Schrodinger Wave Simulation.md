@@ -68,3 +68,10 @@ $$
 	&- \frac{i}{\hbar}\Delta tV(x,y)\Psi(x,y,t) + \Psi(x, y, t)
 \end{align}
 $$
+
+---
+
+$$
+\Psi(x,y,t) = Ae^{-\frac{(x-x_0)^2}{2\sigma_x^2}-\frac{(y-y_0)^2}{2\sigma_y^2}} 
+$$
+

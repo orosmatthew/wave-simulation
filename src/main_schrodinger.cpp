@@ -12,12 +12,10 @@
 #include "schrodinger_renderer.hpp"
 #include "schrodinger_sim.hpp"
 #include "ui.hpp"
-#include "wave_sim.hpp"
-#include "wave_sim_renderer.hpp"
 
 namespace rl = raylib;
 
-constexpr int sim_size = 1024;
+constexpr int sim_size = 128;
 constexpr int base_font_size = 16;
 
 static rl::Rectangle sim_screen_rect(const int toolbar_height)
@@ -60,40 +58,40 @@ static void handle_font_scale_inputs(rl::Font& font)
 
 enum class Mode { none, interact, walls };
 
-static void handle_sim_inputs(const Mode mode, WaveSim& wave_sim, const int toolbar_height)
+static void handle_sim_inputs(const Mode mode, SchrodingerSim& sim, const int toolbar_height)
 {
     const rl::Vector2 mouse_pos = GetMousePosition();
     if (const std::optional<Vector2i> sim_pos = mouse_to_sim(mouse_pos, toolbar_height);
-        sim_pos.has_value() && wave_sim.in_bounds(sim_pos.value())) {
+        sim_pos.has_value() && sim.in_bounds(sim_pos.value())) {
         if (mode == Mode::walls) {
-            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-                constexpr int radius = 10;
-                for (int x = -radius; x < radius; ++x) {
-                    for (int y = -radius; y < radius; ++y) {
-                        if (const Vector2i pos { sim_pos->x + x, sim_pos->y + y };
-                            wave_sim.in_bounds(pos) && std::sqrt(x * x + y * y) <= radius) {
-                            wave_sim.set_at(pos, 0.0);
-                            wave_sim.set_fixed_at(pos, true);
-                        }
-                    }
-                }
-            }
-            if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-                constexpr int radius = 20;
-                for (int x = -radius; x < radius; ++x) {
-                    for (int y = -radius; y < radius; ++y) {
-                        if (const Vector2i pos { sim_pos->x + x, sim_pos->y + y };
-                            wave_sim.in_bounds(pos) && std::sqrt(x * x + y * y) <= radius && wave_sim.fixed_at(pos)) {
-                            wave_sim.set_at(pos, 0.0);
-                            wave_sim.set_fixed_at(pos, false);
-                        }
-                    }
-                }
-            }
+            // if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            //     constexpr int radius = 10;
+            //     for (int x = -radius; x < radius; ++x) {
+            //         for (int y = -radius; y < radius; ++y) {
+            //             if (const Vector2i pos { sim_pos->x + x, sim_pos->y + y };
+            //                 sim.in_bounds(pos) && std::sqrt(x * x + y * y) <= radius) {
+            //                 sim.set_at(pos, 0.0);
+            //                 sim.set_fixed_at(pos, true);
+            //             }
+            //         }
+            //     }
+            // }
+            // if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+            //     constexpr int radius = 20;
+            //     for (int x = -radius; x < radius; ++x) {
+            //         for (int y = -radius; y < radius; ++y) {
+            //             if (const Vector2i pos { sim_pos->x + x, sim_pos->y + y };
+            //                 sim.in_bounds(pos) && std::sqrt(x * x + y * y) <= radius && sim.fixed_at(pos)) {
+            //                 sim.set_at(pos, 0.0);
+            //                 sim.set_fixed_at(pos, false);
+            //             }
+            //         }
+            //     }
+            // }
         }
         else if (mode == Mode::interact) {
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-                wave_sim.add_at(sim_pos.value(), 10.0);
+                sim.set_at(sim_pos.value(), std::complex(100.0, 0.0));
             }
         }
     }
@@ -102,24 +100,48 @@ static void handle_sim_inputs(const Mode mode, WaveSim& wave_sim, const int tool
 struct State {
     rl::Font font;
     float scale;
-    WaveSim wave_sim;
-    WaveSimRenderer sim_renderer;
+    SchrodingerSim sim;
+    SchrodingerRenderer sim_renderer;
     Mode mode;
     LabelledDropdown mode_dropdown;
-    LabelledDropdown theme_dropdown;
-    WaveSimRenderer::Theme renderer_theme;
     int show_fps;
+    bool init;
 };
+
+void init_packet(SchrodingerSim& sim)
+{
+    constexpr auto i = std::complex(0.0, 1.0);
+    for (int j = 0; j < sim_size * sim_size; ++j) {
+        constexpr auto a = 1.0;
+        constexpr auto x0 = 64;
+        constexpr auto y0 = 64;
+        constexpr auto sigma_x = 10.0;
+        constexpr auto sigma_y = 10.0;
+        constexpr auto mom_x = 2.0;
+        constexpr auto mom_y = 0.0;
+        const auto [x, y] = sim.idx_to_pos(j);
+        const auto x_term = std::exp(-std::pow(x - x0, 2.0) / (2.0 * std::pow(sigma_x, 2.0)));
+        const auto y_term = std::exp(-std::pow(y - y0, 2.0) / (2.0 * std::pow(sigma_y, 2.0)));
+        const auto pos = x_term * y_term;
+        const auto mom = std::exp(i * (mom_x * x + mom_y * y));
+        sim.set_at({ x, y }, a * pos * mom);
+    }
+}
 
 void loop(void* state)
 {
     auto* s = static_cast<State*>(state);
 
+    if (!s->init) {
+        init_packet(s->sim);
+        s->init = true;
+    }
+
     const int toolbar_height = static_cast<int>(std::round(100.0f * s->scale));
     handle_font_scale_inputs(s->font);
 
     if (IsKeyPressed(KEY_C)) {
-        s->wave_sim.clear();
+        s->sim.clear();
     }
 
     if (IsKeyPressed(KEY_N)) {
@@ -135,9 +157,9 @@ void loop(void* state)
         s->mode_dropdown.set_active(static_cast<int>(s->mode));
     }
 
-    handle_sim_inputs(s->mode, s->wave_sim, toolbar_height);
-    s->wave_sim.update();
-    s->sim_renderer.update(s->wave_sim, s->renderer_theme);
+    handle_sim_inputs(s->mode, s->sim, toolbar_height);
+    s->sim.update();
+    s->sim_renderer.update(s->sim);
 
     BeginDrawing();
     ClearBackground(LIGHTGRAY);
@@ -164,16 +186,12 @@ void loop(void* state)
 
         float offset_x = ui_padding;
         if (GuiButton({ ui_padding, ui_padding, 70.0f * s->scale, ui_height }, "Clear [C]")) {
-            s->wave_sim.clear();
+            s->sim.clear();
         }
         offset_x += 70.0f * s->scale + ui_padding;
         GuiToggleSlider({ offset_x, ui_padding, 60.0f * s->scale, ui_height }, "FPS;FPS", &s->show_fps);
 
         offset_x = ui_padding;
-        s->theme_dropdown.draw_and_update(
-            { offset_x, ui_height + ui_padding * 1.5f, 110.0f * s->scale, ui_height * 2.0f });
-        offset_x += 110.0f * s->scale + ui_padding;
-        s->renderer_theme = static_cast<WaveSimRenderer::Theme>(s->theme_dropdown.active());
         s->mode_dropdown.draw_and_update(
             { offset_x, ui_height + ui_padding * 1.5f, 90.0f * s->scale, ui_height * 2.0f });
         s->mode = static_cast<Mode>(s->mode_dropdown.active());
@@ -185,7 +203,7 @@ void loop(void* state)
 int main()
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
-    rl::Window window { 600, 700, "Wave Simulation" };
+    rl::Window window { 600, 700, "Schrodinger Simulation" };
     window.SetMinSize(600, 700);
     const int font_size = static_cast<int>(std::round(static_cast<float>(base_font_size) * GetWindowScaleDPI().x));
     rl::Font font = LoadFontFromMemory(
@@ -193,33 +211,24 @@ int main()
     GuiSetFont(font);
     GuiSetStyle(DEFAULT, TEXT_SIZE, font_size);
 
-    constexpr auto sim_props = WaveSim::Properties {
-        .size = sim_size,
-        .wave_speed = 0.5,
-        .grid_spacing = 1.0,
-        .timestep = 1.0,
-        .loss = 0.9995,
-        .damping_strength = 0.08,
-        .damping_width = 100
+    constexpr auto sim_props = SchrodingerSim::Properties {
+        .size = sim_size, .grid_spacing = 1.0, .timestep = 0.01, .hbar = 1.0, .mass = 1.0
     };
 
     auto mode = Mode::interact;
 
-    LabelledDropdown theme_dropdown("Theme");
-    theme_dropdown.set_items({ "Grayscale", "Grayscale ABS" });
     LabelledDropdown mode_dropdown("Mode");
     mode_dropdown.set_items({ "None [N]", "Interact [I]", "Walls [W]" });
     mode_dropdown.set_active(static_cast<int>(mode));
 
     State state { .font = std::move(font),
                   .scale = 1.0f,
-                  .wave_sim = WaveSim(sim_props),
-                  .sim_renderer = WaveSimRenderer(sim_props.size),
+                  .sim = SchrodingerSim(sim_props),
+                  .sim_renderer = SchrodingerRenderer(sim_props.size),
                   .mode = mode,
                   .mode_dropdown = std::move(mode_dropdown),
-                  .theme_dropdown = std::move(theme_dropdown),
-                  .renderer_theme = WaveSimRenderer::Theme::grayscale,
-                  .show_fps = 0 };
+                  .show_fps = 0,
+                  .init = false };
 
 #ifdef PLATFORM_WEB
     emscripten_set_main_loop_arg(loop, &state, 0, 1);
