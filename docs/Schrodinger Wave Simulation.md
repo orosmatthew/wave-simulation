@@ -72,6 +72,6 @@ $$
 ---
 
 $$
-\Psi(x,y,t) = Ae^{-\frac{(x-x_0)^2}{2\sigma_x^2}-\frac{(y-y_0)^2}{2\sigma_y^2}} 
+\Psi(x,y,t) = Ae^{-\frac{(x-x_0)^2}{2\sigma_x^2}-\frac{(y-y_0)^2}{2\sigma_y^2}}e^{-\frac{(p_xx+p_yy)}{\hbar}} 
 $$
 

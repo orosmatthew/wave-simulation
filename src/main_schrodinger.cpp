@@ -15,7 +15,7 @@
 
 namespace rl = raylib;
 
-constexpr int sim_size = 128;
+constexpr int sim_size = 256;
 constexpr int base_font_size = 16;
 
 static rl::Rectangle sim_screen_rect(const int toolbar_height)
@@ -113,8 +113,8 @@ void init_packet(SchrodingerSim& sim)
     constexpr auto i = std::complex(0.0, 1.0);
     for (int j = 0; j < sim_size * sim_size; ++j) {
         constexpr auto a = 1.0;
-        constexpr auto x0 = 64;
-        constexpr auto y0 = 64;
+        constexpr auto x0 = 128;
+        constexpr auto y0 = 128;
         constexpr auto sigma_x = 10.0;
         constexpr auto sigma_y = 10.0;
         constexpr auto mom_x = 2.0;

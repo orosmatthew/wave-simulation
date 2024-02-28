@@ -100,6 +100,31 @@ public:
     }
 
 private:
+    [[nodiscard]] std::complex<double> spatial_derivative_precise_at_idx(const size_t idx) const
+    {
+        constexpr std::array<std::pair<int, double>, 4> stencil { {
+            { 2, -1.0 },
+            { 1, 16.0 },
+            { -1, 16.0 },
+            { -2, -1.0 },
+        } };
+        auto neighbor_sum = std::complex(0.0, 0.0);
+        const auto [x, y] = idx_to_pos(idx);
+        for (const auto& [offset, coeff] : stencil) {
+            if (const Vector2i neighbor { x + offset, y }; in_bounds(neighbor)) {
+                neighbor_sum += coeff * m_buffer_present[pos_to_idx(neighbor)];
+            }
+        }
+        for (const auto& [offset, coeff] : stencil) {
+            if (const Vector2i neighbor { x, y + offset }; in_bounds(neighbor)) {
+                neighbor_sum += coeff * m_buffer_present[pos_to_idx(neighbor)];
+            }
+        }
+        const auto numerator = neighbor_sum - 60.0 * m_buffer_present[idx];
+        const auto denominator = 12.0 * c_grid_spacing * c_grid_spacing;
+        return numerator / denominator;
+    }
+
     [[nodiscard]] std::complex<double> spatial_derivative_at_idx(const size_t idx) const
     {
         constexpr std::array<Vector2i, 4> neighbors { { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } } };
@@ -118,7 +143,7 @@ private:
     [[nodiscard]] std::complex<double> future_at_idx(const size_t idx) const
     {
         constexpr auto i = std::complex(0.0, 1.0);
-        const auto first_term = i * c_timestep * (c_hbar / 2 * c_mass) * spatial_derivative_at_idx(idx);
+        const auto first_term = i * c_timestep * (c_hbar / 2 * c_mass) * spatial_derivative_precise_at_idx(idx);
         const auto second_term = -(i / c_hbar) * c_timestep * m_buffer_potential[idx] * m_buffer_present[idx];
         const auto third_term = m_buffer_present[idx];
         return first_term + second_term + third_term;
