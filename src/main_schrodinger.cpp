@@ -247,7 +247,7 @@ int main()
     GuiSetStyle(DEFAULT, TEXT_SIZE, font_size);
 
     constexpr auto sim_props = SchrodingerSim::Properties {
-        .size = sim_size, .grid_spacing = 1.0, .timestep = 0.002, .hbar = 1.0, .mass = 1.0
+        .size = sim_size, .grid_spacing = 1.0, .timestep = 0.0025, .hbar = 1.0, .mass = 1.0
     };
 
     auto mode = Mode::interact;
