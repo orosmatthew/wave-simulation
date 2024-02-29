@@ -1,11 +1,10 @@
 #pragma once
 
 #include <complex>
+#include <shared_mutex>
 #include <vector>
 
-#ifndef PLATFORM_WEB
 #include <BS_thread_pool.hpp>
-#endif
 
 #include "common.hpp"
 
@@ -51,19 +50,19 @@ public:
     void update()
     {
         auto update_at = [&](const int i) { m_buffer_future[i] = future_at_idx(i); };
-#ifndef PLATFORM_WEB
+
+        m_buffer_mutex.lock_shared();
         m_thread_pool.detach_blocks<int>(0, c_size * c_size, [&](const int start, const int end) {
             for (int i = start; i < end; ++i) {
                 update_at(i);
             }
         });
         m_thread_pool.wait();
-#else
-        for (int i = 0; i < c_size * c_size; ++i) {
-            update_at(i);
-        }
-#endif
+        m_buffer_mutex.unlock_shared();
+        m_buffer_mutex.lock();
         std::swap(m_buffer_present, m_buffer_future);
+        m_buffer_mutex.unlock();
+
         normalize();
     }
 
@@ -92,11 +91,33 @@ public:
         return c_hbar;
     }
 
+    void lock_read()
+    {
+        m_buffer_mutex.lock_shared();
+    }
+
+    void unlock_read()
+    {
+        m_buffer_mutex.unlock_shared();
+    }
+
+    void lock_write()
+    {
+        m_buffer_mutex.lock();
+    }
+
+    void unlock_write()
+    {
+        m_buffer_mutex.unlock();
+    }
+
     void clear()
     {
+        m_buffer_mutex.lock();
         m_buffer_present = std::vector(c_size * c_size, std::complex(0.0, 0.0));
         m_buffer_future = std::vector(c_size * c_size, std::complex(0.0, 0.0));
         m_buffer_potential = std::vector(c_size * c_size, 0.0);
+        m_buffer_mutex.unlock();
     }
 
 private:
@@ -152,13 +173,28 @@ private:
     void normalize()
     {
         double sum = 0.0;
-        for (int i = 0; i < c_size * c_size; ++i) {
-            sum += std::norm(m_buffer_present[i]);
+        m_buffer_mutex.lock_shared();
+        BS::multi_future<double> block_sums
+            = m_thread_pool.submit_blocks<int>(0, c_size * c_size, [&](const int start, const int end) {
+                  double block_sum = 0.0;
+                  for (int i = start; i < end; ++i) {
+                      block_sum += std::norm(m_buffer_present[i]);
+                  }
+                  return block_sum;
+              });
+        m_buffer_mutex.unlock_shared();
+        for (std::future<double>& future : block_sums) {
+            sum += future.get();
         }
         const double factor = std::sqrt(sum);
-        for (int i = 0; i < c_size * c_size; ++i) {
-            m_buffer_present[i] /= factor;
-        }
+        m_buffer_mutex.lock();
+        m_thread_pool.detach_blocks(0, c_size * c_size, [&](const int start, const int end) {
+            for (int i = start; i < end; ++i) {
+                m_buffer_present[i] /= factor;
+            }
+        });
+        m_thread_pool.wait();
+        m_buffer_mutex.unlock();
     }
 
     const int c_size;
@@ -169,7 +205,6 @@ private:
     std::vector<std::complex<double>> m_buffer_present;
     std::vector<std::complex<double>> m_buffer_future;
     std::vector<double> m_buffer_potential;
-#ifndef PLATFORM_WEB
     BS::thread_pool m_thread_pool;
-#endif
+    std::shared_mutex m_buffer_mutex;
 };

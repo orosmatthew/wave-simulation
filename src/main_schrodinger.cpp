@@ -1,8 +1,6 @@
+#include <chrono>
 #include <optional>
-
-#ifdef PLATFORM_WEB
-#include <emscripten/emscripten.h>
-#endif
+#include <thread>
 
 #include <raylib-cpp.hpp>
 #define RAYGUI_IMPLEMENTATION
@@ -98,18 +96,26 @@ static void handle_sim_inputs(const Mode mode, SchrodingerSim& sim, const int to
 }
 
 struct State {
+    rl::Window window;
     rl::Font font;
     float scale;
     SchrodingerSim sim;
     SchrodingerRenderer sim_renderer;
     Mode mode;
+    LabelledDropdown theme_dropdown;
     LabelledDropdown mode_dropdown;
+    SchrodingerRenderer::Theme renderer_theme;
     int show_fps;
     bool init;
+    std::atomic<bool> should_exit;
+    std::chrono::time_point<std::chrono::steady_clock> frame_count_start;
+    std::atomic<int> frame_count;
+    std::thread sim_thread;
 };
 
 void init_packet(SchrodingerSim& sim)
 {
+    sim.lock_write();
     constexpr auto i = std::complex(0.0, 1.0);
     for (int j = 0; j < sim_size * sim_size; ++j) {
         constexpr auto a = 1.0;
@@ -126,12 +132,11 @@ void init_packet(SchrodingerSim& sim)
         const auto mom = std::exp(i * (mom_x * x + mom_y * y));
         sim.set_at({ x, y }, a * pos * mom);
     }
+    sim.unlock_write();
 }
 
-void loop(void* state)
+void loop(State* s)
 {
-    auto* s = static_cast<State*>(state);
-
     if (!s->init) {
         init_packet(s->sim);
         s->init = true;
@@ -144,22 +149,21 @@ void loop(void* state)
         s->sim.clear();
     }
 
-    if (IsKeyPressed(KEY_N)) {
-        s->mode = Mode::none;
-        s->mode_dropdown.set_active(static_cast<int>(s->mode));
-    }
-    else if (IsKeyPressed(KEY_I)) {
-        s->mode = Mode::interact;
-        s->mode_dropdown.set_active(static_cast<int>(s->mode));
-    }
-    else if (IsKeyPressed(KEY_W)) {
-        s->mode = Mode::walls;
-        s->mode_dropdown.set_active(static_cast<int>(s->mode));
-    }
+    // if (IsKeyPressed(KEY_N)) {
+    //     s->mode = Mode::none;
+    //     s->mode_dropdown.set_active(static_cast<int>(s->mode));
+    // }
+    // else if (IsKeyPressed(KEY_I)) {
+    //     s->mode = Mode::interact;
+    //     s->mode_dropdown.set_active(static_cast<int>(s->mode));
+    // }
+    // else if (IsKeyPressed(KEY_W)) {
+    //     s->mode = Mode::walls;
+    //     s->mode_dropdown.set_active(static_cast<int>(s->mode));
+    // }
 
-    handle_sim_inputs(s->mode, s->sim, toolbar_height);
-    s->sim.update();
-    s->sim_renderer.update(s->sim);
+    // handle_sim_inputs(s->mode, s->sim, toolbar_height);
+    s->sim_renderer.update(s->sim, s->renderer_theme);
 
     BeginDrawing();
     ClearBackground(LIGHTGRAY);
@@ -171,15 +175,33 @@ void loop(void* state)
         0.0f,
         WHITE);
     if (s->show_fps) {
-        DrawFPS(10, toolbar_height + 10);
+        const float font_size = std::round(s->scale * static_cast<float>(base_font_size));
+        rl::DrawTextEx(
+            s->font,
+            "FPS: " + std::to_string(GetFPS()),
+            { 10.0f, static_cast<float>(toolbar_height) + 10.0f },
+            font_size,
+            1.0f,
+            DARKGREEN);
+        const auto now = std::chrono::steady_clock::now();
+        const int tick_rate = static_cast<int>(std::round(
+            static_cast<float>(s->frame_count) / std::chrono::duration<float>(now - s->frame_count_start).count()));
+        rl::DrawTextEx(
+            s->font,
+            "Tick Rate: " + std::to_string(tick_rate),
+            { 10.0f, static_cast<float>(toolbar_height) + 30.0f },
+            font_size,
+            1.0f,
+            BLUE);
+        s->frame_count = 0;
+        s->frame_count_start = now;
     }
 
-#ifndef PLATFORM_WEB
     if (const float scale = GetWindowScaleDPI().x; scale != s->scale) {
         s->scale = scale;
         resize_font(s->font, static_cast<int>(std::round(static_cast<float>(base_font_size) * s->scale)));
     }
-#endif
+
     {
         const float ui_height = 25.0f * s->scale;
         const float ui_padding = 10.0f * s->scale;
@@ -192,6 +214,10 @@ void loop(void* state)
         GuiToggleSlider({ offset_x, ui_padding, 60.0f * s->scale, ui_height }, "FPS;FPS", &s->show_fps);
 
         offset_x = ui_padding;
+        s->theme_dropdown.draw_and_update(
+            { offset_x, ui_height + ui_padding * 1.5f, 110.0f * s->scale, ui_height * 2.0f });
+        s->renderer_theme = static_cast<SchrodingerRenderer::Theme>(s->theme_dropdown.active());
+        offset_x += 110.0f * s->scale + ui_padding;
         s->mode_dropdown.draw_and_update(
             { offset_x, ui_height + ui_padding * 1.5f, 90.0f * s->scale, ui_height * 2.0f });
         s->mode = static_cast<Mode>(s->mode_dropdown.active());
@@ -200,9 +226,18 @@ void loop(void* state)
     EndDrawing();
 }
 
+void sim_thread(void* state)
+{
+    auto* s = static_cast<State*>(state);
+    while (!s->should_exit) {
+        s->sim.update();
+        s->frame_count += 1;
+    }
+}
+
 int main()
 {
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
     rl::Window window { 600, 700, "Schrodinger Simulation" };
     window.SetMinSize(600, 700);
     const int font_size = static_cast<int>(std::round(static_cast<float>(base_font_size) * GetWindowScaleDPI().x));
@@ -212,30 +247,39 @@ int main()
     GuiSetStyle(DEFAULT, TEXT_SIZE, font_size);
 
     constexpr auto sim_props = SchrodingerSim::Properties {
-        .size = sim_size, .grid_spacing = 1.0, .timestep = 0.01, .hbar = 1.0, .mass = 1.0
+        .size = sim_size, .grid_spacing = 1.0, .timestep = 0.002, .hbar = 1.0, .mass = 1.0
     };
 
     auto mode = Mode::interact;
+
+    LabelledDropdown theme_dropdown("Theme");
+    theme_dropdown.set_items({ "Probability", "Waves" });
 
     LabelledDropdown mode_dropdown("Mode");
     mode_dropdown.set_items({ "None [N]", "Interact [I]", "Walls [W]" });
     mode_dropdown.set_active(static_cast<int>(mode));
 
-    State state { .font = std::move(font),
-                  .scale = 1.0f,
-                  .sim = SchrodingerSim(sim_props),
-                  .sim_renderer = SchrodingerRenderer(sim_props.size),
-                  .mode = mode,
-                  .mode_dropdown = std::move(mode_dropdown),
-                  .show_fps = 0,
-                  .init = false };
-
-#ifdef PLATFORM_WEB
-    emscripten_set_main_loop_arg(loop, &state, 0, 1);
-#else
+    State state {
+        .window = window,
+        .font = std::move(font),
+        .scale = 1.0f,
+        .sim = SchrodingerSim(sim_props),
+        .sim_renderer = SchrodingerRenderer(sim_props.size),
+        .mode = mode,
+        .theme_dropdown = std::move(theme_dropdown),
+        .mode_dropdown = std::move(mode_dropdown),
+        .renderer_theme = SchrodingerRenderer::Theme::probability,
+        .show_fps = 0,
+        .init = false,
+        .should_exit = false,
+        .frame_count_start = std::chrono::steady_clock::now(),
+        .frame_count = 0,
+        .sim_thread = std::thread(sim_thread, &state),
+    };
     while (!window.ShouldClose()) {
         loop(&state);
     }
-#endif
+    state.should_exit = true;
+    state.sim_thread.join();
     return EXIT_SUCCESS;
 }
