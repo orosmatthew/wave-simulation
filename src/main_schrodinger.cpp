@@ -37,6 +37,7 @@ static void resize_font(rl::Font& font, const int size)
     font = LoadFontFromMemory(
         ".ttf", font_robot_regular_ttf_bin, static_cast<int>(font_robot_regular_ttf_bin_size), size, nullptr, 0);
     GuiSetFont(font);
+    GuiSetIconScale(static_cast<int>(std::round(static_cast<float>(size) / static_cast<float>(base_font_size))));
     GuiSetStyle(DEFAULT, TEXT_SIZE, size);
 }
 
@@ -62,36 +63,40 @@ static void handle_sim_inputs(const Mode mode, SchrodingerSim& sim, const int to
     if (const std::optional<Vector2i> sim_pos = mouse_to_sim(mouse_pos, toolbar_height);
         sim_pos.has_value() && sim.in_bounds(sim_pos.value())) {
         if (mode == Mode::walls) {
-            // if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            //     constexpr int radius = 10;
-            //     for (int x = -radius; x < radius; ++x) {
-            //         for (int y = -radius; y < radius; ++y) {
-            //             if (const Vector2i pos { sim_pos->x + x, sim_pos->y + y };
-            //                 sim.in_bounds(pos) && std::sqrt(x * x + y * y) <= radius) {
-            //                 sim.set_at(pos, 0.0);
-            //                 sim.set_fixed_at(pos, true);
-            //             }
-            //         }
-            //     }
-            // }
-            // if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-            //     constexpr int radius = 20;
-            //     for (int x = -radius; x < radius; ++x) {
-            //         for (int y = -radius; y < radius; ++y) {
-            //             if (const Vector2i pos { sim_pos->x + x, sim_pos->y + y };
-            //                 sim.in_bounds(pos) && std::sqrt(x * x + y * y) <= radius && sim.fixed_at(pos)) {
-            //                 sim.set_at(pos, 0.0);
-            //                 sim.set_fixed_at(pos, false);
-            //             }
-            //         }
-            //     }
-            // }
-        }
-        else if (mode == Mode::interact) {
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-                sim.set_at(sim_pos.value(), std::complex(100.0, 0.0));
+                sim.lock_write();
+                constexpr int radius = 3;
+                for (int x = -radius; x < radius; ++x) {
+                    for (int y = -radius; y < radius; ++y) {
+                        if (const Vector2i pos { sim_pos->x + x, sim_pos->y + y };
+                            sim.in_bounds(pos) && std::sqrt(x * x + y * y) <= radius) {
+                            sim.set_at(pos, std::complex(0.0, 0.0));
+                            sim.set_fixed_at(pos, true);
+                        }
+                    }
+                }
+                sim.unlock_write();
+            }
+            if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+                sim.lock_write();
+                constexpr int radius = 6;
+                for (int x = -radius; x < radius; ++x) {
+                    for (int y = -radius; y < radius; ++y) {
+                        if (const Vector2i pos { sim_pos->x + x, sim_pos->y + y };
+                            sim.in_bounds(pos) && std::sqrt(x * x + y * y) <= radius && sim.fixed_at(pos)) {
+                            sim.set_at(pos, std::complex(0.0, 0.0));
+                            sim.set_fixed_at(pos, false);
+                        }
+                    }
+                }
+                sim.unlock_write();
             }
         }
+        // else if (mode == Mode::interact) {
+        //     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        //         sim.set_at(sim_pos.value(), std::complex(100.0, 0.0));
+        //     }
+        // }
     }
 }
 
@@ -108,6 +113,7 @@ struct State {
     int show_fps;
     bool init;
     std::atomic<bool> should_exit;
+    std::atomic<bool> sim_paused;
     std::chrono::time_point<std::chrono::steady_clock> frame_count_start;
     std::atomic<int> frame_count;
     std::thread sim_thread;
@@ -119,7 +125,7 @@ void init_packet(SchrodingerSim& sim)
     constexpr auto i = std::complex(0.0, 1.0);
     for (int j = 0; j < sim_size * sim_size; ++j) {
         constexpr auto a = 1.0;
-        constexpr auto x0 = 128;
+        constexpr auto x0 = 10;
         constexpr auto y0 = 128;
         constexpr auto sigma_x = 10.0;
         constexpr auto sigma_y = 10.0;
@@ -149,20 +155,20 @@ void loop(State* s)
         s->sim.clear();
     }
 
-    // if (IsKeyPressed(KEY_N)) {
-    //     s->mode = Mode::none;
-    //     s->mode_dropdown.set_active(static_cast<int>(s->mode));
-    // }
-    // else if (IsKeyPressed(KEY_I)) {
-    //     s->mode = Mode::interact;
-    //     s->mode_dropdown.set_active(static_cast<int>(s->mode));
-    // }
-    // else if (IsKeyPressed(KEY_W)) {
-    //     s->mode = Mode::walls;
-    //     s->mode_dropdown.set_active(static_cast<int>(s->mode));
-    // }
+    if (IsKeyPressed(KEY_N)) {
+        s->mode = Mode::none;
+        s->mode_dropdown.set_active(static_cast<int>(s->mode));
+    }
+    else if (IsKeyPressed(KEY_I)) {
+        s->mode = Mode::interact;
+        s->mode_dropdown.set_active(static_cast<int>(s->mode));
+    }
+    else if (IsKeyPressed(KEY_W)) {
+        s->mode = Mode::walls;
+        s->mode_dropdown.set_active(static_cast<int>(s->mode));
+    }
 
-    // handle_sim_inputs(s->mode, s->sim, toolbar_height);
+    handle_sim_inputs(s->mode, s->sim, toolbar_height);
     s->sim_renderer.update(s->sim, s->renderer_theme);
 
     BeginDrawing();
@@ -212,6 +218,10 @@ void loop(State* s)
         }
         offset_x += 70.0f * s->scale + ui_padding;
         GuiToggleSlider({ offset_x, ui_padding, 60.0f * s->scale, ui_height }, "FPS;FPS", &s->show_fps);
+        offset_x += 60.0f * s->scale + ui_padding;
+        if (GuiButton({ offset_x, ui_padding, 40.0f * s->scale, ui_height }, s->sim_paused ? "#131#" : "#132#")) {
+            s->sim_paused = !s->sim_paused;
+        }
 
         offset_x = ui_padding;
         s->theme_dropdown.draw_and_update(
@@ -230,8 +240,14 @@ void sim_thread(void* state)
 {
     auto* s = static_cast<State*>(state);
     while (!s->should_exit) {
-        s->sim.update();
-        s->frame_count += 1;
+        if (!s->sim_paused) {
+            s->sim.update();
+            s->frame_count += 1;
+        }
+        else {
+            std::this_thread::yield();
+            s->frame_count = 0;
+        }
     }
 }
 
@@ -272,6 +288,7 @@ int main()
         .show_fps = 0,
         .init = false,
         .should_exit = false,
+        .sim_paused = true,
         .frame_count_start = std::chrono::steady_clock::now(),
         .frame_count = 0,
         .sim_thread = std::thread(sim_thread, &state),

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <complex>
-#include <vector>
 
 #include "BS_thread_pool.hpp"
 #include "raylib-cpp.hpp"
@@ -20,7 +19,6 @@ public:
         : c_size(size)
         , m_image(c_size, c_size, BLACK)
         , m_texture(m_image)
-        , m_buffer(c_size * c_size, 0.0)
     {
     }
 
@@ -33,7 +31,6 @@ public:
         sim.lock_read();
         for (int i = 0; i < c_size * c_size; ++i) {
             const auto sim_value = sim.value_at_idx(i);
-            m_buffer[i] = sim_value;
             const auto abs = std::norm(sim_value);
             if (std::min(sim_value.real(), sim_value.imag()) < wave_min) {
                 wave_min = std::max(sim_value.real(), sim_value.imag());
@@ -48,25 +45,33 @@ public:
                 prob_min = abs;
             }
         }
-        sim.unlock_read();
+
         auto update_at = [&](const int i) {
             const auto [x, y] = sim.idx_to_pos(i);
             auto color = BLACK;
             if (theme == Theme::probability) {
-                const double sim_value = std::norm(m_buffer[i]);
-                color = { static_cast<unsigned char>(std::clamp((sim_value - prob_min) / prob_max, 0.0, 1.0) * 255),
-                          static_cast<unsigned char>(std::clamp((sim_value - prob_min) / prob_max, 0.0, 1.0) * 255),
-                          static_cast<unsigned char>(std::clamp((sim_value - prob_min) / prob_max, 0.0, 1.0) * 255),
-                          255 };
+                if (sim.fixed_at_idx(i)) {
+                    color = BLUE;
+                }
+                else {
+                    const double sim_value = std::norm(sim.value_at_idx(i));
+                    const auto intensity
+                        = static_cast<unsigned char>(std::clamp((sim_value - prob_min) / prob_max, 0.0, 1.0) * 255);
+                    color = { intensity, intensity, intensity, 255 };
+                }
             }
             else if (theme == Theme::waves) {
-                const std::complex<double> sim_value = m_buffer[i];
-                color = {
-                    static_cast<unsigned char>(std::clamp((sim_value.real() - wave_min) / wave_max, 0.0, 1.0) * 255),
-                    static_cast<unsigned char>(std::clamp((sim_value.imag() - wave_min) / wave_max, 0.0, 1.0) * 255),
-                    0,
-                    255
-                };
+                if (sim.fixed_at_idx(i)) {
+                    color = BLUE;
+                }
+                else {
+                    const std::complex<double> sim_value = sim.value_at_idx(i);
+                    const auto intensity_real = static_cast<unsigned char>(
+                        std::clamp((sim_value.real() - wave_min) / wave_max, 0.0, 1.0) * 255);
+                    const auto intensity_imag = static_cast<unsigned char>(
+                        std::clamp((sim_value.imag() - wave_min) / wave_max, 0.0, 1.0) * 255);
+                    color = { intensity_real, intensity_imag, 0, 255 };
+                }
             }
             static_cast<unsigned char*>(m_image.data)[(y * m_image.width + x) * 4] = color.r;
             static_cast<unsigned char*>(m_image.data)[(y * m_image.width + x) * 4 + 1] = color.g;
@@ -80,6 +85,7 @@ public:
             }
         });
         m_thread_pool.wait();
+        sim.unlock_read();
         m_texture.Update(m_image.GetData());
     }
 
@@ -92,6 +98,5 @@ private:
     const int c_size;
     raylib::Image m_image;
     raylib::Texture m_texture;
-    std::vector<std::complex<double>> m_buffer;
     BS::thread_pool m_thread_pool;
 };

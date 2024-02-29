@@ -27,6 +27,7 @@ public:
         , m_buffer_present(c_size * c_size, std::complex(0.0, 0.0))
         , m_buffer_future(c_size * c_size, std::complex(0.0, 0.0))
         , m_buffer_potential(c_size * c_size, 0.0)
+        , m_buffer_fixed(c_size * c_size, false)
     {
     }
 
@@ -54,7 +55,9 @@ public:
         m_buffer_mutex.lock_shared();
         m_thread_pool.detach_blocks<int>(0, c_size * c_size, [&](const int start, const int end) {
             for (int i = start; i < end; ++i) {
-                update_at(i);
+                if (!m_buffer_fixed[i]) {
+                    update_at(i);
+                }
             }
         });
         m_thread_pool.wait();
@@ -89,6 +92,21 @@ public:
     [[nodiscard]] double hbar() const
     {
         return c_hbar;
+    }
+
+    void set_fixed_at(const Vector2i pos, const bool value)
+    {
+        m_buffer_fixed[pos_to_idx(pos)] = value;
+    }
+
+    [[nodiscard]] bool fixed_at(const Vector2i pos) const
+    {
+        return m_buffer_fixed[pos_to_idx(pos)];
+    }
+
+    [[nodiscard]] bool fixed_at_idx(const size_t idx) const
+    {
+        return m_buffer_fixed[idx];
     }
 
     void lock_read()
@@ -205,6 +223,7 @@ private:
     std::vector<std::complex<double>> m_buffer_present;
     std::vector<std::complex<double>> m_buffer_future;
     std::vector<double> m_buffer_potential;
+    std::vector<bool> m_buffer_fixed;
     BS::thread_pool m_thread_pool;
     std::shared_mutex m_buffer_mutex;
 };
