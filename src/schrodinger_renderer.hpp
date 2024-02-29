@@ -26,18 +26,18 @@ public:
     {
         double prob_min = std::numeric_limits<double>::max();
         double prob_max = std::numeric_limits<double>::min();
-        double wave_min = std::numeric_limits<double>::max();
-        double wave_max = std::numeric_limits<double>::min();
+        constexpr double wave_min = 0.0;
+        constexpr double wave_max = 0.05;
         sim.lock_read();
         for (int i = 0; i < c_size * c_size; ++i) {
             const auto sim_value = sim.value_at_idx(i);
             const auto abs = std::norm(sim_value);
-            if (std::min(sim_value.real(), sim_value.imag()) < wave_min) {
-                wave_min = std::max(sim_value.real(), sim_value.imag());
-            }
-            if (std::max(sim_value.real(), sim_value.imag()) > wave_max) {
-                wave_max = std::max(sim_value.real(), sim_value.imag());
-            }
+            // if (std::min(sim_value.real(), sim_value.imag()) < wave_min) {
+            //     wave_min = std::max(sim_value.real(), sim_value.imag());
+            // }
+            // if (std::max(sim_value.real(), sim_value.imag()) > wave_max) {
+            //     wave_max = std::max(sim_value.real(), sim_value.imag());
+            // }
             if (abs > prob_max) {
                 prob_max = abs;
             }
@@ -45,7 +45,8 @@ public:
                 prob_min = abs;
             }
         }
-
+        // wave_min = 0.0;
+        // wave_max = 0.05;
         auto update_at = [&](const int i) {
             const auto [x, y] = sim.idx_to_pos(i);
             auto color = BLACK;

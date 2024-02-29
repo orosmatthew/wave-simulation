@@ -135,6 +135,7 @@ public:
         m_buffer_present = std::vector(c_size * c_size, std::complex(0.0, 0.0));
         m_buffer_future = std::vector(c_size * c_size, std::complex(0.0, 0.0));
         m_buffer_potential = std::vector(c_size * c_size, 0.0);
+        m_buffer_fixed = std::vector(c_size * c_size, false);
         m_buffer_mutex.unlock();
     }
 
@@ -192,18 +193,20 @@ private:
     {
         double sum = 0.0;
         m_buffer_mutex.lock_shared();
-        BS::multi_future<double> block_sums
-            = m_thread_pool.submit_blocks<int>(0, c_size * c_size, [&](const int start, const int end) {
-                  double block_sum = 0.0;
-                  for (int i = start; i < end; ++i) {
-                      block_sum += std::norm(m_buffer_present[i]);
-                  }
-                  return block_sum;
-              });
-        m_buffer_mutex.unlock_shared();
-        for (std::future<double>& future : block_sums) {
+        for (BS::multi_future<double> block_sums = m_thread_pool.submit_blocks<int>(
+                 0,
+                 c_size * c_size,
+                 [&](const int start, const int end) {
+                     double block_sum = 0.0;
+                     for (int i = start; i < end; ++i) {
+                         block_sum += std::norm(m_buffer_present[i]);
+                     }
+                     return block_sum;
+                 });
+             std::future<double> & future : block_sums) {
             sum += future.get();
         }
+        m_buffer_mutex.unlock_shared();
         const double factor = std::sqrt(sum);
         m_buffer_mutex.lock();
         m_thread_pool.detach_blocks(0, c_size * c_size, [&](const int start, const int end) {

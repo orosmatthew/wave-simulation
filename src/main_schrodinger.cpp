@@ -152,7 +152,9 @@ void loop(State* s)
     handle_font_scale_inputs(s->font);
 
     if (IsKeyPressed(KEY_C)) {
+        s->sim_paused = true;
         s->sim.clear();
+        init_packet(s->sim);
     }
 
     if (IsKeyPressed(KEY_N)) {
@@ -214,7 +216,9 @@ void loop(State* s)
 
         float offset_x = ui_padding;
         if (GuiButton({ ui_padding, ui_padding, 70.0f * s->scale, ui_height }, "Clear [C]")) {
+            s->sim_paused = true;
             s->sim.clear();
+            init_packet(s->sim);
         }
         offset_x += 70.0f * s->scale + ui_padding;
         GuiToggleSlider({ offset_x, ui_padding, 60.0f * s->scale, ui_height }, "FPS;FPS", &s->show_fps);
@@ -263,7 +267,7 @@ int main()
     GuiSetStyle(DEFAULT, TEXT_SIZE, font_size);
 
     constexpr auto sim_props = SchrodingerSim::Properties {
-        .size = sim_size, .grid_spacing = 1.0, .timestep = 0.0025, .hbar = 1.0, .mass = 1.0
+        .size = sim_size, .grid_spacing = 1.0, .timestep = 0.002, .hbar = 1.0, .mass = 1.0
     };
 
     auto mode = Mode::interact;
