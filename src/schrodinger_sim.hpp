@@ -52,7 +52,7 @@ public:
     {
         auto update_at = [&](const int i) { m_buffer_future[i] = future_at_idx(i); };
 
-        m_buffer_mutex.lock_shared();
+        m_buffer_mutex.lock();
         m_thread_pool.detach_blocks<int>(0, c_size * c_size, [&](const int start, const int end) {
             for (int i = start; i < end; ++i) {
                 if (!m_buffer_fixed[i]) {
@@ -61,7 +61,7 @@ public:
             }
         });
         m_thread_pool.wait();
-        m_buffer_mutex.unlock_shared();
+        m_buffer_mutex.unlock();
         m_buffer_mutex.lock();
         std::swap(m_buffer_present, m_buffer_future);
         m_buffer_mutex.unlock();
